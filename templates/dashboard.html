@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Options Gain Monitor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>Options Gain Monitor (>500%)</h1>
+    <form method="post">
+        <label for="stock_symbol">Enter Stock Symbol:</label>
+        <input type="text" id="stock_symbol" name="stock_symbol" required>
+        <button type="submit">Start Monitoring</button>
+    </form>
+    <table id="optionsTable">
+        <thead>
+            <tr>
+                <th>Stock Symbol</th>
+                <th>Trading Symbol</th>
+                <th>Strike Price</th>
+                <th>Option Type</th>
+                <th>Historical Low</th>
+                <th>Current LTP</th>
+                <th>Gain %</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <script>
+        const socket = io();
+        socket.on("update", (data) => {
+            const tableBody = document.querySelector("#optionsTable tbody");
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>${data.symbol}</td>
+                <td>${data.trading_symbol}</td>
+                <td>${data.strike_price}</td>
+                <td>${data.option_type}</td>
+                <td>${data.historical_low}</td>
+                <td>${data.ltp}</td>
+                <td>${data.percentage_increase}</td>
+            `;
+            tableBody.appendChild(row);
+        });
+    </script>
+</body>
+</html>
