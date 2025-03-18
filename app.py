@@ -1,28 +1,32 @@
 import pandas as pd
 import streamlit as st
 import plotly.express as px
+import plotly.graph_objects as go
 
 # ✅ Load dataset
 file_path = "merge.csv"
 df = pd.read_csv(file_path)
 
 # ✅ Clean and Prepare Data
-df = df.dropna(subset=['LOW_PRICE', 'CLOSE_PRIC', 'DATE'])
+df = df.dropna(subset=['LOW_PRICE', 'HIGH_PRICE', 'CLOSE_PRIC', 'OPEN_PRICE', 'DATE'])
 df['CLOSE_PRIC'] = pd.to_numeric(df['CLOSE_PRIC'], errors='coerce')
+df['OPEN_PRICE'] = pd.to_numeric(df['OPEN_PRICE'], errors='coerce')
 df['LOW_PRICE'] = pd.to_numeric(df['LOW_PRICE'], errors='coerce')
+df['HIGH_PRICE'] = pd.to_numeric(df['HIGH_PRICE'], errors='coerce')
 df['DATE'] = pd.to_datetime(df['DATE'], format='%d-%b-%Y', errors='coerce')
 
 # ✅ Streamlit UI
-st.title("📈 Options Price Gain Tracker with Day-wise Filter")
+st.title("📈 Options Price Gain Tracker with Candlestick Chart")
 
 # ✅ Sidebar Filters
 ticker = st.sidebar.selectbox("Select Ticker", ["All"] + list(df['TICKER'].unique()))
 expiry = st.sidebar.selectbox("Select Expiry Date", ["All"] + list(df['EXPIRY'].unique()))
 type_filter = st.sidebar.selectbox("Select Option Type", ["All"] + list(df['TYPE'].unique()))
-gain_threshold = st.sidebar.slider("Gain % Threshold", min_value=1, max_value=3000, value=500, step=50)
+strike_price = st.sidebar.selectbox("Select Strike Price", ["All"] + list(df['STRIKE PRICE'].unique()))
+gain_threshold = st.sidebar.slider("Gain % Threshold", min_value=1, max_value=3000, value=50, step=50)
 
 # ✅ Day range selection
-days_option = st.sidebar.selectbox("Select Day Range", ["None", "1 Day", "2 Days", "3 Days", "Weekly (7 Days)", "Custom"])
+days_option = st.sidebar.selectbox("Select Day Range", ["None", "1 Day", "2 Days", "3 Days", "Custom"])
 
 if days_option == "None":
     days = None
@@ -43,6 +47,9 @@ if expiry != "All":
 
 if type_filter != "All":
     df_filtered = df_filtered[df_filtered['TYPE'] == type_filter]
+
+if strike_price != "All":
+    df_filtered = df_filtered[df_filtered['STRIKE PRICE'] == strike_price]
 
 # ✅ Day-wise Gain Calculation Function with Single Row Per Strike Price
 def calculate_daywise_gain_single_row(df, days):
@@ -88,7 +95,6 @@ def calculate_daywise_gain_single_row(df, days):
 
 # ✅ Apply Day-wise Gain Calculation
 if days is None:
-    # Use LOW_PRICE and CLOSE_PRIC directly for overall gain
     df_grouped = df_filtered.groupby(['TICKER', 'EXPIRY', 'TYPE', 'STRIKE PRICE']).agg({
         'LOW_PRICE': 'min',
         'CLOSE_PRIC': 'last',
@@ -96,9 +102,7 @@ if days is None:
     }).reset_index()
 
     df_grouped['GAIN_PERCENT'] = ((df_grouped['CLOSE_PRIC'] - df_grouped['LOW_PRICE']) / df_grouped['LOW_PRICE']) * 100
-
     df_daywise = df_grouped
-
 else:
     df_daywise = calculate_daywise_gain_single_row(df_filtered, days)
 
@@ -119,18 +123,30 @@ fig = px.bar(
 )
 st.plotly_chart(fig)
 
-# ✅ Ticker-specific Price Chart
-if not df_daywise_filtered.empty:
-    ticker_selected = st.selectbox("Select Ticker for Price Chart", df_daywise_filtered['TICKER'].unique())
-    df_ticker = df_daywise_filtered[df_daywise_filtered['TICKER'] == ticker_selected]
+# ✅ Candlestick Chart for Each Date of Selected Strike Price
+if not df_filtered.empty and strike_price != "All":
+    df_strike = df_filtered[df_filtered['STRIKE PRICE'] == strike_price]
 
-    fig2 = px.line(
-        df_ticker,
-        x='DATE',
-        y='CLOSE_PRIC',
-        color='TYPE',
-        title=f"Price Trends for {ticker_selected}"
-    )
-    st.plotly_chart(fig2)
+    if not df_strike.empty:
+        # ✅ Group by DATE for price flow visualization
+        fig_candlestick = go.Figure(data=[go.Candlestick(
+            x=df_strike['DATE'],
+            open=df_strike['OPEN_PRICE'],
+            high=df_strike['HIGH_PRICE'],
+            low=df_strike['LOW_PRICE'],
+            close=df_strike['CLOSE_PRIC'],
+            name=f"{strike_price}"
+        )])
+
+        fig_candlestick.update_layout(
+            title=f"Candlestick Chart for {ticker} - {strike_price} (All Dates)",
+            xaxis_title="Date",
+            yaxis_title="Price",
+            xaxis_rangeslider_visible=False
+        )
+        
+        st.plotly_chart(fig_candlestick)
+    else:
+        st.warning("No data available for the selected strike price.")
 else:
-    st.warning("No data available for the selected filter criteria.")
+    st.warning("Please select a specific strike price to view the candlestick chart.")
