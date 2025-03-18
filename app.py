@@ -16,17 +16,17 @@ df['HIGH_PRICE'] = pd.to_numeric(df['HIGH_PRICE'], errors='coerce')
 df['DATE'] = pd.to_datetime(df['DATE'], format='%d-%b-%Y', errors='coerce')
 
 # ✅ Streamlit UI
-st.title("📈 Options Price Gain Tracker with Candlestick Chart")
+st.title("📈 Options Price Gain Tracker")
 
 # ✅ Sidebar Filters
 ticker = st.sidebar.selectbox("Select Ticker", ["All"] + list(df['TICKER'].unique()))
 expiry = st.sidebar.selectbox("Select Expiry Date", ["All"] + list(df['EXPIRY'].unique()))
 type_filter = st.sidebar.selectbox("Select Option Type", ["All"] + list(df['TYPE'].unique()))
 strike_price = st.sidebar.selectbox("Select Strike Price", ["All"] + list(df['STRIKE PRICE'].unique()))
-gain_threshold = st.sidebar.slider("Gain % Threshold", min_value=1, max_value=3000, value=50, step=50)
+gain_threshold = st.sidebar.slider("Gain % Threshold", min_value=1, max_value=3000, value=10, step=50)
 
 # ✅ Day range selection
-days_option = st.sidebar.selectbox("Select Day Range", ["None", "1 Day", "2 Days", "3 Days", "Custom"])
+days_option = st.sidebar.selectbox("Select Day Range", ["1 Day", "2 Days", "3 Days", "Custom"])
 
 if days_option == "None":
     days = None
@@ -51,8 +51,45 @@ if type_filter != "All":
 if strike_price != "All":
     df_filtered = df_filtered[df_filtered['STRIKE PRICE'] == strike_price]
 
-# ✅ Day-wise Gain Calculation Function with Single Row Per Strike Price
-def calculate_daywise_gain_single_row(df, days):
+# ✅ Function to Get the Most Recent or 1-Day Old `UNDRLNG_ST`
+def get_recent_or_1day_undrlng_st(df):
+    """Get most recent or 1-day-old `UNDRLNG_ST` for each strike price per ticker."""
+
+    df = df.sort_values(['TICKER', 'STRIKE PRICE', 'DATE'], ascending=[True, True, False])
+
+    final_data = []
+
+    # ✅ Group by Ticker and Strike Price
+    for (ticker, strike), group in df.groupby(['TICKER', 'STRIKE PRICE']):
+        group = group.reset_index(drop=True)
+
+        # ✅ Most recent `UNDRLNG_ST`
+        recent_undrlng_st = group['UNDRLNG_ST'].iloc[0] if len(group) > 0 else "N/A"
+
+        # ✅ Fallback to 1-day old value if recent is missing
+        if len(group) > 1:
+            old_undrlng_st = group['UNDRLNG_ST'].iloc[1] if pd.notna(group['UNDRLNG_ST'].iloc[1]) else recent_undrlng_st
+        else:
+            old_undrlng_st = recent_undrlng_st  # Use recent if only one row exists
+
+        # ✅ Use most recent or 1-day old as fallback
+        undrlng_st_final = recent_undrlng_st if pd.notna(recent_undrlng_st) else old_undrlng_st
+
+        final_data.append({
+            'TICKER': ticker,
+            'STRIKE PRICE': strike,
+            'MOST_RECENT_UNDRLNG_ST': recent_undrlng_st,
+            'FALLBACK_1DAY_UNDRLNG_ST': old_undrlng_st,
+            'DISPLAY_UNDRLNG_ST': undrlng_st_final
+        })
+
+    return pd.DataFrame(final_data)
+
+# ✅ Apply Function to Get `UNDRLNG_ST`
+df_undrlng = get_recent_or_1day_undrlng_st(df_filtered)
+
+# ✅ Merge with Day-wise Gain Calculation
+def calculate_daywise_gain(df, days):
     """Calculate gain % with single row per strike price."""
     
     df_sorted = df.sort_values(['TICKER', 'EXPIRY', 'STRIKE PRICE', 'DATE'])
@@ -67,7 +104,6 @@ def calculate_daywise_gain_single_row(df, days):
             # ✅ Use overall low price if no day filter is applied
             low_price = group['LOW_PRICE'].min()
             close_price = group['CLOSE_PRIC'].iloc[-1]  # Latest close price
-
         else:
             # ✅ Use low price from N days ago
             if len(group) >= days:
@@ -85,7 +121,6 @@ def calculate_daywise_gain_single_row(df, days):
             'EXPIRY': expiry,
             'TYPE': type_,
             'STRIKE PRICE': strike,
-            'DATE': group['DATE'].iloc[-1],   # Latest date
             'CLOSE_PRIC': close_price,
             'LOW_PRICE': low_price,
             'GAIN_PERCENT': gain_percent
@@ -104,22 +139,25 @@ if days is None:
     df_grouped['GAIN_PERCENT'] = ((df_grouped['CLOSE_PRIC'] - df_grouped['LOW_PRICE']) / df_grouped['LOW_PRICE']) * 100
     df_daywise = df_grouped
 else:
-    df_daywise = calculate_daywise_gain_single_row(df_filtered, days)
+    df_daywise = calculate_daywise_gain(df_filtered, days)
+
+# ✅ Merge Gain Data with `UNDRLNG_ST`
+df_final = pd.merge(df_daywise, df_undrlng, how='left', on=['TICKER', 'STRIKE PRICE'])
 
 # ✅ Filter by Gain Threshold
-df_daywise_filtered = df_daywise[df_daywise['GAIN_PERCENT'] >= gain_threshold]
+df_final_filtered = df_final[df_final['GAIN_PERCENT'] >= gain_threshold]
 
-# ✅ Display Table
-st.dataframe(df_daywise_filtered[['TICKER', 'EXPIRY', 'TYPE', 'STRIKE PRICE', 'CLOSE_PRIC', 'LOW_PRICE', 'GAIN_PERCENT']])
+# ✅ Display Table with Most Recent or 1-Day Old `UNDRLNG_ST`
+st.dataframe(df_final_filtered[['TICKER', 'EXPIRY', 'TYPE', 'STRIKE PRICE', 'DISPLAY_UNDRLNG_ST', 'CLOSE_PRIC', 'LOW_PRICE', 'GAIN_PERCENT']])
 
 # ✅ Plot Bar Chart
 fig = px.bar(
-    df_daywise_filtered,
+    df_final_filtered,
     x='TICKER',
     y='GAIN_PERCENT',
     color='TYPE',
     title=f"Options with High Gains over {days} Days" if days else "Overall Gains",
-    hover_data=['EXPIRY', 'STRIKE PRICE']
+    hover_data=['EXPIRY', 'STRIKE PRICE', 'DISPLAY_UNDRLNG_ST']
 )
 st.plotly_chart(fig)
 

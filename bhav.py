@@ -4,8 +4,8 @@ import re
 import zipfile
 import shutil
 
-source_dir = r"D:\apps\Options\Options_scanner\zip"
-destination_dir = r"D:\apps\Options\Options_scanner"
+source_dir = r"E:\apps\Options\Options_scanner\zip"
+destination_dir = r"E:\apps\Options\Options_scanner"
 pattern = re.compile(r"^(OPTSTK|OPTIDX)([A-Z]+)(\d{2}-[A-Z]{3}-\d{4})(CE|PE)([\d\.]+)$")
 
 merged_data = []
@@ -47,7 +47,8 @@ for item in os.listdir(source_dir):
                 if df.shape[1] < 14:
                     continue
 
-                df.drop(df.iloc[:, 6:14], axis=1, inplace=True)
+                df.drop(df.iloc[:, 6:11], axis=1, inplace=True)
+                df.drop(df.iloc[:, 7:9], axis=1, inplace=True)
 
                 if "PREVIOUS_S" in df.columns:
                     previous_s_index = df.columns.get_loc("PREVIOUS_S")
