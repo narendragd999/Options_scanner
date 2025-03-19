@@ -21,8 +21,12 @@ st.title("📈 Options Price Gain Tracker")
 # ✅ Sidebar Filters
 ticker = st.sidebar.selectbox("Select Ticker", ["All"] + list(df['TICKER'].unique()))
 expiry = st.sidebar.selectbox("Select Expiry Date", ["All"] + list(df['EXPIRY'].unique()))
-type_filter = st.sidebar.selectbox("Select Option Type", ["All"] + list(df['TYPE'].unique()))
+type_filter = st.sidebar.selectbox("Select CE/PE Type", ["All"] + list(df['TYPE'].unique()))
 strike_price = st.sidebar.selectbox("Select Strike Price", ["All"] + list(df['STRIKE PRICE'].unique()))
+
+# ✅ New Option Type Filter (OPTSTK / OPTIDX)
+option_type = st.sidebar.selectbox("Select Option Type", ["All", "OPTSTK", "OPTIDX"])
+
 gain_threshold = st.sidebar.slider("Gain % Threshold", min_value=1, max_value=3000, value=10, step=50)
 
 # ✅ Day range selection
@@ -51,10 +55,15 @@ if type_filter != "All":
 if strike_price != "All":
     df_filtered = df_filtered[df_filtered['STRIKE PRICE'] == strike_price]
 
+# ✅ Apply the new "Option Type" filter (OPTSTK/OPTIDX)
+if option_type != "All":
+    # Ensure NaN handling before filtering
+    df_filtered = df_filtered[df_filtered['Option Type'].fillna("").str.upper() == option_type]
+
+
 # ✅ Function to Get the Most Recent or 1-Day Old `UNDRLNG_ST`
 def get_recent_or_1day_undrlng_st(df):
     """Get most recent or 1-day-old `UNDRLNG_ST` for each strike price per ticker."""
-
     df = df.sort_values(['TICKER', 'STRIKE PRICE', 'DATE'], ascending=[True, True, False])
 
     final_data = []
@@ -70,7 +79,7 @@ def get_recent_or_1day_undrlng_st(df):
         if len(group) > 1:
             old_undrlng_st = group['UNDRLNG_ST'].iloc[1] if pd.notna(group['UNDRLNG_ST'].iloc[1]) else recent_undrlng_st
         else:
-            old_undrlng_st = recent_undrlng_st  # Use recent if only one row exists
+            old_undrlng_st = recent_undrlng_st
 
         # ✅ Use most recent or 1-day old as fallback
         undrlng_st_final = recent_undrlng_st if pd.notna(recent_undrlng_st) else old_undrlng_st
@@ -166,23 +175,14 @@ if not df_filtered.empty and strike_price != "All":
     df_strike = df_filtered[df_filtered['STRIKE PRICE'] == strike_price]
 
     if not df_strike.empty:
-        # ✅ Group by DATE for price flow visualization
         fig_candlestick = go.Figure(data=[go.Candlestick(
             x=df_strike['DATE'],
             open=df_strike['OPEN_PRICE'],
             high=df_strike['HIGH_PRICE'],
             low=df_strike['LOW_PRICE'],
-            close=df_strike['CLOSE_PRIC'],
-            name=f"{strike_price}"
+            close=df_strike['CLOSE_PRIC']
         )])
 
-        fig_candlestick.update_layout(
-            title=f"Candlestick Chart for {ticker} - {strike_price} (All Dates)",
-            xaxis_title="Date",
-            yaxis_title="Price",
-            xaxis_rangeslider_visible=False
-        )
-        
         st.plotly_chart(fig_candlestick)
     else:
         st.warning("No data available for the selected strike price.")
