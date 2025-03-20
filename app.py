@@ -27,6 +27,7 @@ strike_price = st.sidebar.selectbox("Select Strike Price", ["All"] + list(df['ST
 # ✅ New Option Type Filter (OPTSTK / OPTIDX)
 option_type = st.sidebar.selectbox("Select Option Type", ["All", "OPTSTK", "OPTIDX"])
 
+# ✅ Gain Threshold Slider
 gain_threshold = st.sidebar.slider("Gain % Threshold", min_value=1, max_value=3000, value=10, step=50)
 
 # ✅ Day range selection
@@ -57,7 +58,6 @@ if strike_price != "All":
 
 # ✅ Apply the new "Option Type" filter (OPTSTK/OPTIDX)
 if option_type != "All":
-    # Ensure NaN handling before filtering
     df_filtered = df_filtered[df_filtered['Option Type'].fillna("").str.upper() == option_type]
 
 
@@ -94,8 +94,10 @@ def get_recent_or_1day_undrlng_st(df):
 
     return pd.DataFrame(final_data)
 
+
 # ✅ Apply Function to Get `UNDRLNG_ST`
 df_undrlng = get_recent_or_1day_undrlng_st(df_filtered)
+
 
 # ✅ Merge with Day-wise Gain Calculation
 def calculate_daywise_gain(df, days):
@@ -137,6 +139,7 @@ def calculate_daywise_gain(df, days):
 
     return pd.DataFrame(gain_data)
 
+
 # ✅ Apply Day-wise Gain Calculation
 if days is None:
     df_grouped = df_filtered.groupby(['TICKER', 'EXPIRY', 'TYPE', 'STRIKE PRICE']).agg({
@@ -156,7 +159,16 @@ df_final = pd.merge(df_daywise, df_undrlng, how='left', on=['TICKER', 'STRIKE PR
 # ✅ Filter by Gain Threshold
 df_final_filtered = df_final[df_final['GAIN_PERCENT'] >= gain_threshold]
 
-# ✅ Display Table with Most Recent or 1-Day Old `UNDRLNG_ST`
+# ✅ Additional Filter by Gain Percent with Text Box
+gain_input = st.sidebar.text_input("Filter by Gain % Above", "50")
+
+try:
+    gain_input_value = float(gain_input)
+    df_final_filtered = df_final_filtered[df_final_filtered['GAIN_PERCENT'] >= gain_input_value]
+except ValueError:
+    st.warning("Invalid input. Please enter a numeric value.")
+
+# ✅ Display Table
 st.dataframe(df_final_filtered[['TICKER', 'EXPIRY', 'TYPE', 'STRIKE PRICE', 'DISPLAY_UNDRLNG_ST', 'CLOSE_PRIC', 'LOW_PRICE', 'GAIN_PERCENT']])
 
 # ✅ Plot Bar Chart
@@ -165,26 +177,7 @@ fig = px.bar(
     x='TICKER',
     y='GAIN_PERCENT',
     color='TYPE',
-    title=f"Options with High Gains over {days} Days" if days else "Overall Gains",
+    title="Filtered Options with High Gains",
     hover_data=['EXPIRY', 'STRIKE PRICE', 'DISPLAY_UNDRLNG_ST']
 )
 st.plotly_chart(fig)
-
-# ✅ Candlestick Chart for Each Date of Selected Strike Price
-if not df_filtered.empty and strike_price != "All":
-    df_strike = df_filtered[df_filtered['STRIKE PRICE'] == strike_price]
-
-    if not df_strike.empty:
-        fig_candlestick = go.Figure(data=[go.Candlestick(
-            x=df_strike['DATE'],
-            open=df_strike['OPEN_PRICE'],
-            high=df_strike['HIGH_PRICE'],
-            low=df_strike['LOW_PRICE'],
-            close=df_strike['CLOSE_PRIC']
-        )])
-
-        st.plotly_chart(fig_candlestick)
-    else:
-        st.warning("No data available for the selected strike price.")
-else:
-    st.warning("Please select a specific strike price to view the candlestick chart.")
