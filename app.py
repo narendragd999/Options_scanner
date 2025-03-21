@@ -125,7 +125,8 @@ def calculate_daywise_gain(df, days):
             close_price = group['CLOSE_PRIC'].iloc[-1]  # Latest close price
 
         # ✅ Calculate gain percent
-        gain_percent = ((close_price - low_price) / low_price) * 100 if low_price != 0 else 0
+        gain_percent = int(((close_price - low_price) / low_price) * 100) if low_price != 0 else 0
+
 
         gain_data.append({
             'TICKER': ticker,
