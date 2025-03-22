@@ -8,8 +8,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 # Define directories
-source_dir = r"E:\apps\Options\Options_scanner\zip"
-destination_dir = r"E:\apps\Options\Options_scanner"
+source_dir = "zip"
+destination_dir = "output"
 pattern = re.compile(r"^(OPTSTK|OPTIDX)([A-Z]+)(\d{2}-[A-Z]{3}-\d{4})(CE|PE)([\d\.]+)$")
 
 # Ensure source_dir exists
