@@ -22,19 +22,17 @@ def extract_date(folder_name):
         }
         month = month_names.get(month, month)  # Convert to short month name
         formatted_date = f"{day}-{month}-{year}"
-        print(f"✅ Extracted Date: {formatted_date} from {folder_name}")
+        print(f"✅ Extracted Date: {formatted_date} from {folder_name}")  # Debugging print
         return formatted_date
-    print(f"⚠️ Date not found in {folder_name}")
+    print(f"⚠️ Date not found in {folder_name}")  # Debugging print
     return ""
 
-# New filter settings (you can modify these as needed)
-FILTER_STRIKE_WITHIN_10_PERCENT = True  # Set to True to enable the 10% filter
 
 for item in os.listdir(source_dir):
     item_path = os.path.join(source_dir, item)
 
     if item.endswith(".zip") and item.startswith("fo"):
-        formatted_date = extract_date(item.split(".")[0])
+        formatted_date = extract_date(item.split(".")[0])  # Ensure correct folder name
 
         extract_path = os.path.join(source_dir, item[:-4])
         
@@ -67,31 +65,18 @@ for item in os.listdir(source_dir):
                             df.at[i, "TYPE"] = match.group(4)
                             df.at[i, "STRIKE PRICE"] = match.group(5)
 
-                df["DATE"] = formatted_date
+                df["DATE"] = formatted_date  # Add extracted date
 
                 if "CLOSE_PRIC" in df.columns:
-                    df["CLOSE_PRIC"] = df["CLOSE_PRIC"].replace(0, 0.05)
+                    df["CLOSE_PRIC"] = df["CLOSE_PRIC"].replace(0, 0.05)  # Replace 0 with 0.05
 
-                # Convert relevant columns to numeric for comparison
-                df["STRIKE PRICE"] = pd.to_numeric(df["STRIKE PRICE"], errors='coerce')
-                df["UNDRLNG_ST"] = pd.to_numeric(df.get("UNDRLNG_ST", pd.Series()), errors='coerce')
-
-                # Filter: STRIKE PRICE > UNDRLNG_ST (mandatory)
-                if "UNDRLNG_ST" in df.columns:
-                    df = df[df["STRIKE PRICE"] > df["UNDRLNG_ST"]].dropna(subset=["STRIKE PRICE", "UNDRLNG_ST"])
-
-                    # Optional Filter: STRIKE PRICE within 10% less than UNDRLNG_ST
-                    if FILTER_STRIKE_WITHIN_10_PERCENT:
-                        df = df[df["STRIKE PRICE"] >= df["UNDRLNG_ST"] * 0.9]  # STRIKE PRICE >= 90% of UNDRLNG_ST
-
-                # Append only if there are valid rows after filtering
-                if not df.empty:
-                    merged_data.append(df)
+                merged_data.append(df)
 
         shutil.rmtree(extract_path)
 
     elif os.path.isdir(item_path) and item.startswith("fo"):
-        formatted_date = extract_date(item.split(".")[0])
+        formatted_date = extract_date(item.split(".")[0])  # Ensure correct folder name
+
 
         for file in os.listdir(item_path):
             if file.startswith("op") and file.endswith(".csv"):
@@ -118,26 +103,12 @@ for item in os.listdir(source_dir):
                             df.at[i, "TYPE"] = match.group(4)
                             df.at[i, "STRIKE PRICE"] = match.group(5)
 
-                df["DATE"] = formatted_date
+                df["DATE"] = formatted_date  # Add extracted date
 
                 if "CLOSE_PRIC" in df.columns:
-                    df["CLOSE_PRIC"] = df["CLOSE_PRIC"].replace(0, 0.05)
+                    df["CLOSE_PRIC"] = df["CLOSE_PRIC"].replace(0, 0.05)  # Replace 0 with 0.05
 
-                # Convert relevant columns to numeric for comparison
-                df["STRIKE PRICE"] = pd.to_numeric(df["STRIKE PRICE"], errors='coerce')
-                df["UNDRLNG_ST"] = pd.to_numeric(df.get("UNDRLNG_ST", pd.Series()), errors='coerce')
-
-                # Filter: STRIKE PRICE > UNDRLNG_ST (mandatory)
-                if "UNDRLNG_ST" in df.columns:
-                    df = df[df["STRIKE PRICE"] > df["UNDRLNG_ST"]].dropna(subset=["STRIKE PRICE", "UNDRLNG_ST"])
-
-                    # Optional Filter: STRIKE PRICE within 10% less than UNDRLNG_ST
-                    if FILTER_STRIKE_WITHIN_10_PERCENT:
-                        df = df[df["STRIKE PRICE"] >= df["UNDRLNG_ST"] * 0.9]  # STRIKE PRICE >= 90% of UNDRLNG_ST
-
-                # Append only if there are valid rows after filtering
-                if not df.empty:
-                    merged_data.append(df)
+                merged_data.append(df)
 
 if merged_data:
     final_df = pd.concat(merged_data, ignore_index=True)
